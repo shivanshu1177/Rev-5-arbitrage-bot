@@ -1,0 +1,39 @@
+{
+  "api_key":         "Paste your API key",
+  "private_key_hex": "paste your private key",
+
+  "venues": {
+    "C2C1": {
+      "exchange_id": "c2c1",
+      "base_url":    "https://coinswitch.co"
+    },
+    "C2C2": {
+      "exchange_id": "c2c2",
+      "base_url":    "https://coinswitch.co"
+    }
+  },
+
+  "ws_url": "wss://ws.coinswitch.co/pro/realtime-rates-socket/spot/?EIO=4&transport=websocket",
+
+  "symbols": [
+    {"pair_id": 0, "name": "BTC/USDT"},
+    {"pair_id": 1, "name": "ETH/USDT"},
+    {"pair_id": 2, "name": "SOL/USDT"}
+  ],
+
+  "fee_rate":                   0.0004,
+  "data_file":                  "build/data/real_ticks.bin",
+  "initial_balance_per_venue":  500000.0,
+  "min_profit_usd":             0.50,
+  "max_position_pct":           0.10,
+  "max_stale_ms":               5000,
+
+  "sim": {
+    "fill_probability":    0.70,
+    "latency_penalty_bps": 2.0,
+    "leg_failure_prob":    0.05,
+    "leg_fail_loss_bps":   50.0,
+    "tds_rate":            0.01,
+    "gst_on_fee_rate":     0.18
+  }
+}

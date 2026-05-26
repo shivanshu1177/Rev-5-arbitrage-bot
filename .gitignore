@@ -1,0 +1,10 @@
+build/
+*.log
+data/
+*.bin
+inout.md
+INTERVIEW_GUIDE.md
+BACKTEST_REPORT.md
+ENGINE_DEEP_DIVE.md
+SYSTEM.md
+PRODUCTION_REPORT.md
