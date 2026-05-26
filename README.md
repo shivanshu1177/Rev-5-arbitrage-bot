@@ -1,4 +1,4 @@
-# CoinSwitch Cross-Venue Arbitrage Engine
+# Cross-Venue Arbitrage Engine
 
 C++20 statistical arbitrage engine detecting price discrepancies between two CoinSwitch Pro accounts
 via a lock-free SPSC ring buffer and a branchless 15 ns execution core. Built to demonstrate the
