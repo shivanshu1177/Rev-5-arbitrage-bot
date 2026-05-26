@@ -77,14 +77,3 @@ All dependencies (`spdlog`, `nlohmann/json`, `IXWebSocket`) are fetched via CMak
 no `brew install` required beyond OpenSSL and curl.
 
 ---
-
-## Documents
-
-| File | What it covers |
-|---|---|
-| [`inout.md`](inout.md) | Full technical spec, telemetry data, production viability, all five safety patterns |
-| [`INTERVIEW_GUIDE.md`](INTERVIEW_GUIDE.md) | Presentation playbook: 60-sec pitch, 5-min walkthrough, Q&A with answers |
-| [`SYSTEM.md`](SYSTEM.md) | Internal design notes and data flow |
-| [`ENGINE_DEEP_DIVE.md`](ENGINE_DEEP_DIVE.md) | Branchless arithmetic and signal evaluation in depth |
-| [`BACKTEST_REPORT.md`](BACKTEST_REPORT.md) | Backtest results on real CoinSwitch data (break-even spread analysis) |
-| [`PRODUCTION_REPORT.md`](PRODUCTION_REPORT.md) | Production gap analysis: what was fixed, what remains |
