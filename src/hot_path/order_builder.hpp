@@ -3,8 +3,11 @@
 // then patches price and quantity in the hot path without any allocation or snprintf.
 //
 // Template buffer layout:
-//   {"symbol":"BTCUSDT","side":"BUY","type":"MARKET","quantity":"QQQQQQQQQQQQQQ","price":"PPPPPPPPPPPPPP"}
+//   {"symbol":"BTCUSDT","side":"BUY","type":"LIMIT","time_in_force":"IOC","quantity":"QQQQQQQQQQQQQQ","price":"PPPPPPPPPPPPPP"}
 //   where Q and P are fixed-width ASCII placeholders of known lengths.
+//
+// LIMIT+IOC: we either fill at the observed price or receive no fill at all.
+// We never suffer adverse slippage beyond the signal's assumed price.
 //
 // patch_order() overwrites these placeholders using fast_ftoa(), which writes directly
 // into the buffer at pre-recorded offsets. No null terminator in the patched region —
@@ -101,7 +104,7 @@ inline void init_template(
     append_str(symbol_name);
     append_str("\",\"side\":\"");
     append_str(side);
-    append_str("\",\"type\":\"MARKET\",\"quantity\":\"");
+    append_str("\",\"type\":\"LIMIT\",\"time_in_force\":\"IOC\",\"quantity\":\"");
 
     // Record qty placeholder offset
     t.qty_off = static_cast<size_t>(p - t.buffer);
