@@ -60,17 +60,39 @@ inline void process_tick(
             if (mx <= 0.0f || mn / mx < 0.20f) return;
         }
 
-        // Attempt both legs simultaneously; returns 0 if any constraint fails.
+        // Exchange-timestamp skew gate: reject if one venue's price is older than
+        // the other by more than max_exchange_ts_skew_ms (default 100ms).
+        // Gate is skipped when either slot has exchange_ts_ms == 0 (backtest replay
+        // or exchange does not include a timestamp in the WS payload).
+        {
+            const uint32_t ts_b = state.exchange_ts_ms[sig.buy_idx];
+            const uint32_t ts_s = state.exchange_ts_ms[sig.sell_idx];
+            if (ts_b != 0 && ts_s != 0) {
+                const uint32_t skew = ts_b > ts_s ? ts_b - ts_s : ts_s - ts_b;
+                if (skew > state.max_exchange_ts_skew_ms) [[unlikely]] return;
+            }
+        }
+
+        // Constraint check only — does NOT touch quote_balance.
         // tick.pair_id is the same for both legs (buy and sell are the same coin).
         const float qty = ledger.try_arb(
             tick.pair_id,
-            buy_price, sell_price,
+            buy_price,
             buy_depth, sell_depth,
             constants::MAX_POSITION_PCT);
 
         if (qty > 0.0f) [[likely]] {
+            // Last-look: re-read state to confirm spread is still profitable.
+            // Guards against market movement between signal eval and order send.
+            const float ll_ask = state.asks[sig.buy_idx];
+            const float ll_bid = state.bids[sig.sell_idx];
+            const float ll_fee = constants::FEE_RATE * (ll_ask + ll_bid);
+            if (ll_bid - ll_ask - ll_fee < constants::MIN_PROFIT_USD) [[unlikely]] return;
+
+            // Last-look passed — commit ledger, then patch + submit.
+            ledger.apply_arb(qty, buy_price, sell_price);
+
             // Patch both pre-formatted order bodies with current prices and qty.
-            // The handler (LiveOrderHandler) reads these buffers to send to the exchange.
             patch_order(buy_templates[sig.buy_idx],   buy_price,  qty);
             patch_order(sell_templates[sig.sell_idx], sell_price, qty);
 
