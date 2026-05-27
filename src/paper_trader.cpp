@@ -89,6 +89,22 @@ struct LatencyStats {
         }
         std::printf("    p50 %-12s  p95 %-12s  p99 %-12s\n", p50, p95, p99);
     }
+    void write_json(FILE* f, const char* label) const noexcept {
+        std::fprintf(f, "  \"%s\": {\n", label);
+        std::fprintf(f, "    \"count\": %llu,\n",   static_cast<unsigned long long>(count));
+        std::fprintf(f, "    \"min_us\": %.3f,\n",  count ? min_ns / 1000.0 : 0.0);
+        std::fprintf(f, "    \"avg_us\": %.3f,\n",  avg_us());
+        std::fprintf(f, "    \"max_us\": %.3f,\n",  count ? max_ns / 1000.0 : 0.0);
+        std::fprintf(f, "    \"buckets\": [%llu,%llu,%llu,%llu,%llu,%llu,%llu]\n",
+                     static_cast<unsigned long long>(buckets[0]),
+                     static_cast<unsigned long long>(buckets[1]),
+                     static_cast<unsigned long long>(buckets[2]),
+                     static_cast<unsigned long long>(buckets[3]),
+                     static_cast<unsigned long long>(buckets[4]),
+                     static_cast<unsigned long long>(buckets[5]),
+                     static_cast<unsigned long long>(buckets[6]));
+        std::fprintf(f, "  }");
+    }
 };
 
 // ── Paper trade handler ───────────────────────────────────────────────────────
@@ -272,10 +288,8 @@ int main(int argc, char** argv) {
             if (record_fp) std::fwrite(&tick, sizeof(tick), 1, record_fp);
             arb::process_tick(tick, state, ledger, buy_templates, sell_templates, handler);
             const uint64_t done_ns = time_utils::now_ns();
-            if (latency_profile) {
-                lat_queue.record(wait_ns);
-                lat_engine.record(done_ns - pop_ns);
-            }
+            lat_queue.record(wait_ns);
+            lat_engine.record(done_ns - pop_ns);
             ++tick_count;
         } else {
             std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -319,21 +333,38 @@ int main(int argc, char** argv) {
                  "{} polls OK, {} errors",
                  run_s, tick_count, poller.polls_ok(), poller.polls_err());
 
-    if (latency_profile && lat_queue.count > 0) {
-        std::printf("\n=== Latency Profile ===\n");
-        std::printf("  Ticks measured       : %llu\n",
-                    static_cast<unsigned long long>(lat_queue.count));
-        std::printf("  Queue wait (REST->pop): min=%.1fus  avg=%.1fus  max=%.1fus\n",
-                    lat_queue.min_ns / 1e3, lat_queue.avg_us(), lat_queue.max_ns / 1e3);
-        lat_queue.print_histogram("REST->pop");
-        std::printf("  Engine (process_tick): min=%.0fns  avg=%.0fns  max=%.0fns\n",
-                    static_cast<double>(lat_engine.min_ns),
-                    lat_engine.avg_us() * 1000.0,
-                    static_cast<double>(lat_engine.max_ns));
-        lat_engine.print_histogram("process_tick");
-        std::printf("  E2E tick->record     : avg=%.1fus\n",
-                    lat_queue.avg_us() + lat_engine.avg_us());
-        std::printf("=======================\n");
+    if (lat_queue.count > 0) {
+        if (latency_profile) {
+            std::printf("\n=== Latency Profile ===\n");
+            std::printf("  Ticks measured       : %llu\n",
+                        static_cast<unsigned long long>(lat_queue.count));
+            std::printf("  Queue wait (REST->pop): min=%.1fus  avg=%.1fus  max=%.1fus\n",
+                        lat_queue.min_ns / 1e3, lat_queue.avg_us(), lat_queue.max_ns / 1e3);
+            lat_queue.print_histogram("REST->pop");
+            std::printf("  Engine (process_tick): min=%.0fns  avg=%.0fns  max=%.0fns\n",
+                        static_cast<double>(lat_engine.min_ns),
+                        lat_engine.avg_us() * 1000.0,
+                        static_cast<double>(lat_engine.max_ns));
+            lat_engine.print_histogram("process_tick");
+            std::printf("  E2E tick->record     : avg=%.1fus\n",
+                        lat_queue.avg_us() + lat_engine.avg_us());
+            std::printf("=======================\n");
+        }
+        FILE* pf = std::fopen("latency_profile_rest.json", "w");
+        if (pf) {
+            std::fprintf(pf, "{\n  \"mode\": \"paper_rest\",\n  \"tick_count\": %llu,\n",
+                         static_cast<unsigned long long>(lat_queue.count));
+            lat_queue.write_json(pf, "queue_latency");
+            std::fprintf(pf, ",\n");
+            lat_engine.write_json(pf, "engine_latency");
+            std::fprintf(pf, "\n}\n");
+            std::fclose(pf);
+            std::printf("Latency profile  : latency_profile_rest.json\n");
+            std::system("python3 tools/generate_charts.py "
+                        "--input latency_profile_rest.json "
+                        "--out latency_histogram_rest.png 2>/dev/null && "
+                        "echo 'Histogram        : latency_histogram_rest.png'");
+        }
     }
 
     const arb::MetricsSummary metrics = arb::compute_metrics(
