@@ -41,6 +41,8 @@ Config load_config(const std::string& path) {
         const uint32_t stale_ms = j.value("max_stale_ms", 5000u);
         cfg.max_stale_ns = static_cast<uint64_t>(stale_ms) * 1'000'000ULL;
     }
+    cfg.max_exchange_ts_skew_ms = j.value("max_exchange_ts_skew_ms", 100u);
+    cfg.order_timeout_ms        = j.value("order_timeout_ms",        500u);
     cfg.initial_balance  = j.value("initial_balance_per_venue",  50000.0f);
 
     // Data file path
