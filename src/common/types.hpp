@@ -17,7 +17,8 @@ enum class Venue : uint8_t { C2C1 = 1, C2C2 = 2 };
 //   offset 16: float    best_ask          (4 bytes)
 //   offset 20: float    bid_qty           (4 bytes)
 //   offset 24: float    ask_qty           (4 bytes)
-//   offset 28: uint8_t  _pad[36]          (36 bytes, explicit fill to 64)
+//   offset 28: uint32_t exchange_ts_ms    (4 bytes, Unix ms from WS payload; 0 = unknown)
+//   offset 32: uint8_t  _pad[32]          (32 bytes, explicit fill to 64)
 struct alignas(64) MarketTick {
     uint64_t timestamp_ns;
     uint8_t  venue;
@@ -27,14 +28,16 @@ struct alignas(64) MarketTick {
     float    best_ask;
     float    bid_qty;
     float    ask_qty;
-    uint8_t  _pad[36];        // 28 bytes used + 36 pad = 64 total
+    uint32_t exchange_ts_ms;  // Unix ms from exchange WS payload; 0 = unknown (backtest/omitted)
+    uint8_t  _pad[32];        // 32 bytes used + 32 pad = 64 total
 };
 static_assert(sizeof(MarketTick)  == 64,  "MarketTick must be exactly 64 bytes");
 static_assert(alignof(MarketTick) == 64,  "MarketTick must be 64-byte aligned");
-static_assert(offsetof(MarketTick, venue)   == 8);
-static_assert(offsetof(MarketTick, pair_id) == 10);
-static_assert(offsetof(MarketTick, best_bid)== 12);
-static_assert(offsetof(MarketTick, _pad)    == 28);
+static_assert(offsetof(MarketTick, venue)          == 8);
+static_assert(offsetof(MarketTick, pair_id)        == 10);
+static_assert(offsetof(MarketTick, best_bid)       == 12);
+static_assert(offsetof(MarketTick, exchange_ts_ms) == 28);
+static_assert(offsetof(MarketTick, _pad)           == 32);
 
 // One arb opportunity fired when both legs can execute
 struct OrderRequest {
@@ -88,9 +91,11 @@ struct Config {
     char       data_file[256]     = {};
     float      initial_balance    = 50000.0f;  // single USDT balance (unified wallet)
     float      min_profit_usd     = constants::MIN_PROFIT_USD;
-    float      max_position_pct   = constants::MAX_POSITION_PCT;
-    uint64_t   max_stale_ns       = constants::MAX_STALE_NS;
-    char       api_key[128]       = {};          // one key shared across both venues
+    float      max_position_pct        = constants::MAX_POSITION_PCT;
+    uint64_t   max_stale_ns            = constants::MAX_STALE_NS;
+    uint32_t   max_exchange_ts_skew_ms = 100;  // reject signal if venues' exchange-ts differ by more
+    uint32_t   order_timeout_ms        = 500;  // mark order TIMEOUT after this many ms
+    char       api_key[128]            = {};          // one key shared across both venues
     char       private_key_hex[128] = {};        // Ed25519 private key, 64-char hex string
     VenueInfo  venues[2]          = {};          // [0]=C2C1, [1]=C2C2
     char       ws_url[256]        = {};
