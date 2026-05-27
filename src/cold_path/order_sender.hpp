@@ -31,13 +31,14 @@ namespace arb {
 class OrderSender {
 public:
     struct VenueHandle {
-        CURL* curl                = nullptr;
-        char  api_key[128]        = {};
-        char  private_key_hex[128]= {};
-        char  base_url[256]       = {};
-        char  exchange_id[16]     = {};
-        char  last_response[4096] = {};
-        size_t response_len       = 0;
+        CURL* curl                  = nullptr;
+        char  api_key[128]          = {};
+        char  private_key_hex[128]  = {};
+        char  base_url[256]         = {};
+        char  exchange_id[16]       = {};
+        char  last_response[4096]   = {};
+        size_t response_len         = 0;
+        char  last_order_id_[64]    = {};  // order_id from last successful send; "" on failure
     };
 
 
@@ -49,6 +50,12 @@ public:
     bool init(const Config& cfg) noexcept;
     void send_order(uint8_t venue, const OrderTemplate& tmpl) noexcept;
     void cleanup() noexcept;
+
+    // Returns the order_id string from the last send_order() call on this venue (0-based index).
+    // Empty string if the send failed or no order has been sent yet.
+    const char* last_order_id(uint8_t venue_idx) const noexcept {
+        return handles_[venue_idx].last_order_id_;
+    }
 
 private:
     VenueHandle handles_[2];   // [0]=C2C1, [1]=C2C2

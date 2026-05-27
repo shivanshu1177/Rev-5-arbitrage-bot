@@ -94,8 +94,9 @@ void OrderSender::send_order(uint8_t venue, const OrderTemplate& tmpl) noexcept 
     headers = curl_slist_append(headers, h_sig);
     headers = curl_slist_append(headers, h_epoch);
 
-    handles_[vi].response_len    = 0;
-    handles_[vi].last_response[0]= '\0';
+    handles_[vi].response_len      = 0;
+    handles_[vi].last_response[0]  = '\0';
+    handles_[vi].last_order_id_[0] = '\0';  // clear before each send
 
     curl_easy_setopt(c, CURLOPT_URL,           url);
     curl_easy_setopt(c, CURLOPT_HTTPHEADER,    headers);
@@ -107,6 +108,7 @@ void OrderSender::send_order(uint8_t venue, const OrderTemplate& tmpl) noexcept 
 
     if (res != CURLE_OK) {
         spdlog::error("OrderSender: curl error venue={}: {}", venue, curl_easy_strerror(res));
+        handles_[vi].last_order_id_[0] = '\0';
         return;
     }
 
@@ -120,10 +122,12 @@ void OrderSender::send_order(uint8_t venue, const OrderTemplate& tmpl) noexcept 
             p = std::strchr(p, ':');
             if (p) {
                 while (*p == ':' || *p == ' ' || *p == '"') ++p;
-                char order_id[64] = {};
                 size_t i = 0;
-                while (*p && *p != '"' && i < 63) order_id[i++] = *p++;
-                spdlog::info("OrderSender: placed venue={} order_id={}", venue, order_id);
+                while (*p && *p != '"' && i < 63)
+                    handles_[vi].last_order_id_[i++] = *p++;
+                handles_[vi].last_order_id_[i] = '\0';
+                spdlog::info("OrderSender: placed venue={} order_id={}", venue,
+                             handles_[vi].last_order_id_);
             }
         }
     } else {
