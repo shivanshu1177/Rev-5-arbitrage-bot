@@ -17,15 +17,18 @@ struct alignas(64) MarketState {
     float    asks[constants::MAX_INSTRUMENTS];              // best ask price per index
     float    bid_qty[constants::MAX_INSTRUMENTS];           // top-of-book bid quantity
     float    ask_qty[constants::MAX_INSTRUMENTS];           // top-of-book ask quantity
-    uint64_t last_ts_ns[constants::MAX_INSTRUMENTS];  // tick.timestamp_ns of last update per slot (0 = never seen)
-    uint64_t max_stale_ns = constants::MAX_STALE_NS;  // configurable threshold; set from Config after reset()
+    uint64_t last_ts_ns[constants::MAX_INSTRUMENTS];      // tick.timestamp_ns of last update per slot (0 = never seen)
+    uint32_t exchange_ts_ms[constants::MAX_INSTRUMENTS];  // tick.exchange_ts_ms of last update per slot (0 = unknown)
+    uint64_t max_stale_ns            = constants::MAX_STALE_NS;
+    uint32_t max_exchange_ts_skew_ms = 100;  // set from Config after reset()
 
     void reset() noexcept {
-        std::memset(bids,        0, sizeof(bids));
-        std::memset(asks,        0, sizeof(asks));
-        std::memset(bid_qty,     0, sizeof(bid_qty));
-        std::memset(ask_qty,     0, sizeof(ask_qty));
-        std::memset(last_ts_ns,  0, sizeof(last_ts_ns));
+        std::memset(bids,           0, sizeof(bids));
+        std::memset(asks,           0, sizeof(asks));
+        std::memset(bid_qty,        0, sizeof(bid_qty));
+        std::memset(ask_qty,        0, sizeof(ask_qty));
+        std::memset(last_ts_ns,     0, sizeof(last_ts_ns));
+        std::memset(exchange_ts_ms, 0, sizeof(exchange_ts_ms));
     }
 
     [[nodiscard]] static constexpr uint16_t map_to_index(
@@ -46,11 +49,12 @@ struct alignas(64) MarketState {
         if (tick.venue < 1u || tick.venue > 2u ||
             tick.pair_id >= constants::PAIRS_PER_VENUE) [[unlikely]] return;
         const uint16_t idx = map_to_index(tick.venue, tick.pair_id);
-        bids[idx]       = tick.best_bid;
-        asks[idx]       = tick.best_ask;
-        bid_qty[idx]    = tick.bid_qty;
-        ask_qty[idx]    = tick.ask_qty;
-        last_ts_ns[idx] = tick.timestamp_ns;
+        bids[idx]           = tick.best_bid;
+        asks[idx]           = tick.best_ask;
+        bid_qty[idx]        = tick.bid_qty;
+        ask_qty[idx]        = tick.ask_qty;
+        last_ts_ns[idx]     = tick.timestamp_ns;
+        exchange_ts_ms[idx] = tick.exchange_ts_ms;
     }
 };
 
