@@ -52,6 +52,24 @@ static size_t poll_write_cb(char* ptr, size_t size, size_t nmemb, void* userdata
 // ── Minimal JSON parser ───────────────────────────────────────────────────────
 // Finds the first price in a bid/ask array in the CoinSwitch JSON response.
 // Avoids heap allocation — scans the response buffer directly.
+
+// Scan for a top-level integer field like "timestamp":1673255767122 or "ts":1234.
+// Tries each key in the null-terminated keys[] array; returns 0 if none found.
+static uint32_t find_timestamp(const char* body, const char* const keys[]) noexcept {
+    for (int i = 0; keys[i]; ++i) {
+        const char* p = std::strstr(body, keys[i]);
+        if (!p) continue;
+        p += std::strlen(keys[i]);
+        // skip whitespace and colon
+        while (*p == ' ' || *p == ':' || *p == '\t') ++p;
+        if (*p == '"') ++p;  // quoted integer
+        if (*p < '0' || *p > '9') continue;
+        const uint64_t val = std::strtoull(p, nullptr, 10);
+        if (val > 0) return static_cast<uint32_t>(val);  // truncate same as live.cpp
+    }
+    return 0;
+}
+
 static float find_first_price(const char* body, const char* key) noexcept {
     const char* p = std::strstr(body, key);
     if (!p) return 0.0f;
@@ -160,15 +178,22 @@ bool RestPoller::parse_orderbook_json(
         ask += offset;
     }
 
+    // Probe known timestamp field names in the REST depth response.
+    // Tried in API-doc order; gate is skipped (ts==0) if none present.
+    static const char* const TS_KEYS[] = {
+        "\"timestamp\"", "\"ts\"", "\"t\"", "\"T\"", nullptr
+    };
+
     out = MarketTick{};
-    out.timestamp_ns  = time_utils::now_ns();
-    out.venue         = venue;
-    out._implicit_pad = 0;
-    out.pair_id       = pair_id;
-    out.best_bid      = bid;
-    out.best_ask      = ask;
-    out.bid_qty       = (bid_qty > 0.0f) ? bid_qty : 0.01f;
-    out.ask_qty       = (ask_qty > 0.0f) ? ask_qty : 0.01f;
+    out.timestamp_ns    = time_utils::now_ns();
+    out.venue           = venue;
+    out._implicit_pad   = 0;
+    out.pair_id         = pair_id;
+    out.best_bid        = bid;
+    out.best_ask        = ask;
+    out.bid_qty         = (bid_qty > 0.0f) ? bid_qty : 0.01f;
+    out.ask_qty         = (ask_qty > 0.0f) ? ask_qty : 0.01f;
+    out.exchange_ts_ms  = find_timestamp(body, TS_KEYS);
     return true;
 }
 
