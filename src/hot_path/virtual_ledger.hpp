@@ -40,12 +40,13 @@ struct VirtualLedger {
     }
 
     // Attempt both legs of an arb trade with unified-wallet semantics.
-    // Returns qty executed (> 0) or 0.0f if any constraint is unsatisfied.
+    // Returns executable qty (> 0) or 0.0f if any constraint is unsatisfied.
+    // Does NOT modify quote_balance — call apply_arb() only after last-look passes.
+    // sell_price is not needed for constraints (only buy_price drives the budget calc).
     // All min operations are branchless (bit_cast pattern → ARM64 CSEL).
     [[nodiscard]] float try_arb(
         uint16_t pair_id,
         float    buy_price,
-        float    sell_price,
         float    buy_depth,   // top-of-book qty available at best ask (from MarketState.ask_qty)
         float    sell_depth,  // top-of-book qty available at best bid (from MarketState.bid_qty)
         float    max_pct) noexcept
@@ -76,15 +77,16 @@ struct VirtualLedger {
           const uint32_t b = std::bit_cast<uint32_t>(sell_depth);
           qty = std::bit_cast<float>(a < b ? a : b); }
 
-        const float exe = (qty > 0.0f) ? qty : 0.0f;  // FCMP+CSEL
-
-        // Net balance update: spread minus both legs' exchange fees.
-        // FIX: previous code omitted fee deduction here, overstating PnL.
-        const float fee = constants::FEE_RATE * (buy_price + sell_price);
-        quote_balance += exe * (sell_price - buy_price - fee);
-
         // coin_balance[pair_id] is unchanged: qty bought on c2c1 = qty sold on c2c2.
-        return exe;
+        return (qty > 0.0f) ? qty : 0.0f;  // FCMP+CSEL
+    }
+
+    // Commit the ledger after last-look passes. Called only when try_arb() returned > 0
+    // and the spread is still profitable. Matches BacktestOrderHandler::ledger_delta()
+    // exactly so sim_handler.hpp reversal logic stays correct.
+    void apply_arb(float qty, float buy_price, float sell_price) noexcept {
+        const float fee = constants::FEE_RATE * (buy_price + sell_price);
+        quote_balance += qty * (sell_price - buy_price - fee);
     }
 };
 
